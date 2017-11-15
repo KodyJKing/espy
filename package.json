@@ -1,0 +1,22 @@
+{
+  "name": "espy",
+  "version": "1.0.0",
+  "description": "Generate Python from ECMAScript ASTs.",
+  "main": "index.js",
+  "scripts": {
+    "watch": "nodemon src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KodyJKing/espy.git"
+  },
+  "author": "KJK",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/KodyJKing/espy/issues"
+  },
+  "homepage": "https://github.com/KodyJKing/espy#readme",
+  "dependencies": {
+    "esprima": "^4.0.0"
+  }
+}
