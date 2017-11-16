@@ -1,34 +1,42 @@
 module.exports = function ionstringify(o) {
     let parts = []
+    let indentLevel = 0
     let part = (str) => { parts.push(str) }
-    let end = () => { part('\n') }
+    let outdent = () => { indentLevel++ }
+    let indent = () => { indentLevel-- }
+    let dent = () => { for (let i = 0; i < indentLevel; i++) part('  ') }
+    let seperator = (str) => { let i = 0; return () => { if (i++ > 0) part(str) } }
 
-    function internal(o, depth) {
-        let dent = () => { for (let i = 0; i < depth; i++) part('  ') }
-
-        if (typeof o == 'object') {
+    function internal(o) {
+        if (typeof o == 'object' && o !== null) {
             let inline = JSON.stringify(o).length < 80
             let isArray = Array.isArray(o)
-            let i = 0
+            let seperate = seperator(inline ? ', ' : ',\n')
+
             let count = Object.keys(o || {}).length
+            if (count == 0) {
+                part(isArray ? '[]' : '{}')
+                return
+            }
+
             if (inline) {
                 part(isArray ? '[ ' : '{ ')
             } else {
-                part(isArray ? '[]' : '{}')
-                dent()
-                end()
-                depth += 1
+                part(isArray ? '[]\n' : '{}\n')
+                outdent()
             }
 
             for (let key in o) {
+                seperate()
                 if (!inline) dent()
-                if (i++ > 0 && inline) part(', ')
                 if (!isArray) part(key + ': ')
-                internal(o[key], depth)
-                if (!inline && i < count) end()
+                internal(o[key])
             }
 
-            if (inline) part(isArray ? ' ]' : ' }')
+            if (inline) 
+                part(isArray ? ' ]' : ' }')
+            else
+                indent()
 
         } else {
             part(JSON.stringify(o))
