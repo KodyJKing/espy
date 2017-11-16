@@ -3,22 +3,19 @@ var ionstringify = require('./ionstringify')
 
 function generate(ast) {
     let parts = []
-    let depth = 0
+    let indent = 0
     let part = (str) => { parts.push(str) }
-    let end = () => part('\n')
-    let dent = () => { for (let i = 0; i < depth; i++) part('  ') }
+    let dent = () => { for (let i = 0; i < indent; i++) part(' ') }
+    let seperator = (sep) => { let i = 0; return () => { if (i++ > 0) part(sep) } }
 
     let generators = {
         "Program": (node) => {
-            let i = 0
+            let separate = seperator('\n')
             for (let expression of node.body) {
+                separate()
                 dent()
                 gen(expression)
-                if (++i < node.body.length) end()
             }
-        },
-        "ExpressionStatement": (node) => {
-            gen(node.expression)
         },
         "CallExpression": (node) => {
             gen(node.callee)
@@ -37,6 +34,34 @@ function generate(ast) {
                 part(node.property.name)
             }
         },
+        "VariableDeclaration": (node) => {
+            let separate = seperator(', ')
+            for (let declaration of node.declarations) { separate(); part(declaration.id.name) }
+            part(' = ')
+            separate = seperator(', ')
+            for (let declaration of node.declarations) { separate(); gen(declaration.init)}
+        },
+        "FunctionExpression": (node) => {
+            print(node)
+
+        },
+        "FunctionDeclaration": (node) => {
+            print(node)
+            part(node.id.name + '(')
+            let separate = seperator(', ')
+            for (let param of node.params) { separate(); part(param.name) }
+            part(')')
+            part(':')
+            indent += 2
+            separate = seperator('\n')
+            for (let line of node.body.body) {
+                separate()
+                dent()
+                gen(line)
+            }
+        },
+        "BinaryExpression": (node) => { gen(node.left); part(' ' + node.operator + ' '); gen(node.right) },
+        "ExpressionStatement": (node) => { gen(node.expression) },
         "Identifier": (node) => { part(node.name) },
         "Literal": (node) => { part(node.raw) },
     }
