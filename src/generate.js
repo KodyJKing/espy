@@ -1,83 +1,106 @@
 var print = require('./print')
 var ionstringify = require('./ionstringify')
+var preprocess = require('./preprocess')
 
-function generate(ast) {
+module.exports = function (ast) {
+    print('\nAST', ast)
+    ast = preprocess(ast)
+    print('\nPROCESSED AST', ast)
+
     let parts = []
-    let indent = 0
+    let indentLevel = -1
     let part = (str) => { parts.push(str) }
-    let dent = () => { for (let i = 0; i < indent; i++) part(' ') }
+    let dent = () => { for (let i = 0; i < indentLevel; i++) part('    ') }
+    let indent = () => { indentLevel-- }
+    let outdent = () => { indentLevel++ }
     let seperator = (sep) => { let i = 0; return () => { if (i++ > 0) part(sep) } }
 
+    let generate = function (node) {
+        let type = node.espyType || node.type
+        let generator = generators[type]
+        if (!generator) {
+            print('\nERROR ON', node)
+            throw new Error('Unsupported node type ' + type)
+        } else {
+            generators[type](node)
+        }
+    }
+
     let generators = {
-        "Program": (node) => {
+        Program: (node) => {
             let separate = seperator('\n')
             for (let expression of node.body) {
                 separate()
                 dent()
-                gen(expression)
+                generate(expression)
             }
         },
-        "CallExpression": (node) => {
-            gen(node.callee)
+        CallExpression: (node) => {
+            generate(node.callee)
             part('(')
-            for(let arg of node.arguments) gen(arg)
+            for(let arg of node.arguments) generate(arg)
             part(')')
         },
-        "MemberExpression": (node) => {
-            gen(node.object)
+        MemberExpression: (node) => {
+            generate(node.object)
             if (node.computed) {
                 part('[')
-                gen(node.property)
+                generate(node.property)
                 part(']')
             } else {
                 part('.')
                 part(node.property.name)
             }
         },
-        "VariableDeclaration": (node) => {
+        VariableDeclaration: (node) => {
             let separate = seperator(', ')
             for (let declaration of node.declarations) { separate(); part(declaration.id.name) }
             part(' = ')
             separate = seperator(', ')
-            for (let declaration of node.declarations) { separate(); gen(declaration.init)}
+            for (let declaration of node.declarations) { separate(); generate(declaration.init)}
         },
-        "FunctionExpression": (node) => {
-            print(node)
-
-        },
-        "FunctionDeclaration": (node) => {
-            print(node)
+        FunctionDeclaration: (node) => {
             part(node.id.name + '(')
             let separate = seperator(', ')
             for (let param of node.params) { separate(); part(param.name) }
             part(')')
             part(':')
-            indent += 2
-            separate = seperator('\n')
-            for (let line of node.body.body) {
-                separate()
-                dent()
-                gen(line)
+            part('\n')
+            generate(node.body)
+        },
+        IfStatement: (node) => {
+            part('if ')
+            generate(node.test)
+            part(':\n')
+            generate(node.consequent)
+            if (node.alternate) {
+                part('\nelse:\n')
+                generate(node.alternate)
             }
         },
-        "BinaryExpression": (node) => { gen(node.left); part(' ' + node.operator + ' '); gen(node.right) },
-        "ExpressionStatement": (node) => { gen(node.expression) },
-        "Identifier": (node) => { part(node.name) },
-        "Literal": (node) => { part(node.raw) },
+        WhileStatement: (node) => {
+            part('while ')
+            generate(node.test)
+            part(':\n')
+            generate(node.body)
+        },
+        BlockStatement: (node) => {
+            separate = seperator('\n')
+            outdent()
+            for (let line of node.body) {
+                separate()
+                dent()
+                generate(line)
+            }
+            indent()
+        },
+        BinaryExpression: (node) => { generate(node.left); part(' ' + node.operator + ' '); generate(node.right) },
+        ExpressionStatement: (node) => { generate(node.expression) },
+        Identifier: (node) => { part(node.name) },
+        Literal: (node) => { part(node.raw) },
+        PassStatement: (node) => { part('pass') }
     }
 
-    let gen = function(node) {
-        let generator = generators[node.type]
-        if (!generator) {
-            print(node)
-            throw new Error('Unsupported node type ' + node.type)
-        } else {
-            generators[node.type](node)
-        }
-    }
-
-    gen(ast, 0)
+    generate(ast, 0)
     return parts.join('')
 }
-
-module.exports = generate

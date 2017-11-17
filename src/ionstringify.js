@@ -9,12 +9,12 @@ module.exports = function ionstringify(o) {
 
     function internal(o) {
         if (typeof o == 'object' && o !== null) {
-            let inline = JSON.stringify(o).length < 80
+            let jsonLength = JSON.stringify(o).length
+            let inline = jsonLength < 80
             let isArray = Array.isArray(o)
             let seperate = seperator(inline ? ', ' : ',\n')
 
-            let count = Object.keys(o || {}).length
-            if (count == 0) {
+            if (jsonLength == 2) {
                 part(isArray ? '[]' : '{}')
                 return
             }
@@ -33,7 +33,7 @@ module.exports = function ionstringify(o) {
                 internal(o[key])
             }
 
-            if (inline) 
+            if (inline)
                 part(isArray ? ' ]' : ' }')
             else
                 indent()
