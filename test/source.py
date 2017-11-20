@@ -12,4 +12,9 @@ def espyset(object, property, value):
 
 console = {'log': print}
 
-espyget( console, "log" )({ "foo": 10 })
+i = 0
+while i < 10:
+    if not i < 10:
+        break
+    espyget( console, "log" )(i)
+    i += 1

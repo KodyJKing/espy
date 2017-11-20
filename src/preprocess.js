@@ -1,11 +1,6 @@
 var print = require('./print')
 var estraverse = require('estraverse')
 
-var uniqueIdCounter = 0
-function getUniqueId() {
-    return 'tmp' + uniqueIdCounter++
-}
-
 module.exports = function (ast) {
     let result = ast
     let path = []
@@ -26,6 +21,21 @@ module.exports = function (ast) {
         )
     return result
 }
+
+// HELPERS
+
+var uniqueIdCounter = 0
+getUniqueId = () => 'tmp' + uniqueIdCounter++
+parent = (path) => path[path.length - 1]
+
+function insertBefore(body, beforeNode, node) {
+    let positionInParent = body.indexOf(beforeNode)
+    body.splice(positionInParent, 0, node)
+}
+
+var BlockStatement = (body) => ({ type: 'BlockStatement', body })
+
+// STEPS
 
 function convertSingleStatementToBlock(node, field) {
     let member = node[field]
@@ -62,11 +72,8 @@ function methodDefinitionToFunctionDefenition(node, path) {
 }
 
 function annotateStaticMethod(node, path) {
-    if (node.static) {
-        let parent = path[path.length - 1]
-        let positionInParent = parent.body.indexOf(node)
-        parent.body.splice(positionInParent, 0, { type: 'Verbatim', text: '@staticmethod' })
-    }
+    if (node.static)
+        insertBefore(parent(path).body, node, { type: 'Verbatim', text: '@staticmethod' })
 }
 
 function moveFunctionIntoBlock(node, path) {
@@ -90,6 +97,22 @@ function memberAssignment(node) {
     }
 }
 
+
+function forToWhile(node, path) {
+    insertBefore(parent(path).body, node, node.init)
+    node.type = 'WhileStatement'
+    node.body.body.splice(0, 0, {
+        type: 'IfStatement',
+        test: {
+            type: 'UnaryExpression',
+            operator: '!',
+            argument: node.test
+        },
+        consequent: BlockStatement([ { type: 'BreakStatement'} ])
+    })
+    node.body.body.push(node.update)
+}
+
 var passes = [
     {
         Program: (node) => { node.type = 'BlockStatement'; node.isProgram = true },
@@ -105,6 +128,7 @@ var passes = [
         ForStatement: (node) => { convertSingleStatementToBlock(node, 'body') },
         IfStatement: (node) => { convertSingleStatementToBlock(node, 'consequent'); convertSingleStatementToBlock(node, 'alternate') }
     },
+    { ForStatement: forToWhile },
     { ArrowFunctionExpression: arrowFunctionToFunctionExpression, MethodDefinition: methodDefinitionToFunctionDefenition },
     { FunctionExpression: moveFunctionIntoBlock, BlockStatement: passEmptyBody, FunctionDeclaration: annotateStaticMethod }
 ]

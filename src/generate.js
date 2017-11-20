@@ -84,6 +84,19 @@ module.exports = function (ast) {
             generate(node.value)
             part(' )')
         },
+        UpdateExpression: (node) => {
+            generate(node.argument)
+            switch(node.operator) {
+                case '++':
+                    part(' += 1')
+                    break
+                case '--':
+                    part(' -= 1')
+                    break
+                default:
+                    throw new Error('Unsupported update expression ' + node.operator)
+            }
+        },
         VariableDeclaration: (node) => {
             let separate = seperator(', ')
             for (let declaration of node.declarations) { separate(); part(declaration.id.name) }
@@ -148,12 +161,12 @@ module.exports = function (ast) {
                 case '!':
                     part('not ')
                     generate(node.argument)
-                    break;
+                    break
                 case '~':
                 case '-':
                     part(node.operator)
                     generate(node.argument)
-                    break;
+                    break
                 default:
                     throw new Error('Unsupported unary operator ' + node.operator)
             }
@@ -164,6 +177,7 @@ module.exports = function (ast) {
             else
                 part(node.raw)
         },
+        BreakStatement: (node) => { part('break') },
         ClassDeclaration: (node) => { part('class ' + node.id.name + ':\n'); generate(node.body) },
         BinaryExpression: (node) => { generate(node.left); part(' ' + node.operator + ' '); generate(node.right) },
         AssignmentExpression: (node) => { generate(node.left); part(' = '); generate(node.right) },
