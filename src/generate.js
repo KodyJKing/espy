@@ -1,23 +1,28 @@
 var print = require('./print')
 var ionstringify = require('./ionstringify')
 var preprocess = require('./preprocess')
+var esprima = require('esprima')
 
 var stdBody =
-`def espyget(o, name):
-    if type(o).__name__ == 'dict':
-        return o[name]
-    else:
-        return getattr(o, name)
+`def espyget(object, property):
+    if type(object).__name__ == 'dict':
+        if property in object:
+            return object[property]
+    return getattr(object, property)
 
-def espyset(o, name, value):
-    if type(o).__name__ == 'dict':
-        o[name] = value
+def espyset(object, property, value):
+    if type(object).__name__ == 'dict':
+        object[property] = value
     else:
-        setattr(o, name, value)
+        setattr(object, property, value)
+
+console = {'log': print}
 
 `
 
 module.exports = function (ast) {
+    if (typeof ast == 'string')
+        ast = esprima.parse(ast)
     print('\nAST', ast)
     ast = preprocess(ast)
     print('\nPROCESSED AST', ast)
@@ -58,15 +63,26 @@ module.exports = function (ast) {
             part(')')
         },
         MemberExpression: (node) => {
+            part('espyget( ')
             generate(node.object)
-            if (node.computed) {
-                part('[')
+            part(', ')
+            if (node.computed)
                 generate(node.property)
-                part(']')
-            } else {
-                part('.')
-                part(node.property.name)
-            }
+            else
+                part(JSON.stringify(node.property.name))
+            part(' )')
+        },
+        MemberAssignmentExpression: (node) => {
+            part('espyset( ')
+            generate(node.object)
+            part(', ')
+            if (node.computed)
+                generate(node.property)
+            else
+                part(JSON.stringify(node.property.name))
+            part(', ')
+            generate(node.value)
+            part(' )')
         },
         VariableDeclaration: (node) => {
             let separate = seperator(', ')
@@ -125,15 +141,35 @@ module.exports = function (ast) {
             if (node.argument) {
                 part(' ')
                 generate(node.argument)
-
             }
+        },
+        UnaryExpression: (node) => {
+            switch(node.operator) {
+                case '!':
+                    part('not ')
+                    generate(node.argument)
+                    break;
+                case '~':
+                case '-':
+                    part(node.operator)
+                    generate(node.argument)
+                    break;
+                default:
+                    throw new Error('Unsupported unary operator ' + node.operator)
+            }
+        },
+        Literal: (node) => {
+            if (typeof node.value == 'boolean')
+                part(node.value ? 'True' : 'False')
+            else
+                part(node.raw)
         },
         ClassDeclaration: (node) => { part('class ' + node.id.name + ':\n'); generate(node.body) },
         BinaryExpression: (node) => { generate(node.left); part(' ' + node.operator + ' '); generate(node.right) },
         AssignmentExpression: (node) => { generate(node.left); part(' = '); generate(node.right) },
         ExpressionStatement: (node) => { generate(node.expression) },
         Identifier: (node) => { part(node.name) },
-        Literal: (node) => { part(node.raw) }
+        Verbatim: (node) => { part(node.text) }
     }
 
     part(stdBody)

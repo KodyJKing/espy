@@ -18,6 +18,9 @@ module.exports = function (ast) {
                     path.pop()
                     if (step[node.type])
                         return step[node.type](node, path)
+                },
+                keys: {
+                    MemberAssignmentExpression: ['object', 'property', 'value']
                 }
             }
         )
@@ -36,7 +39,7 @@ function convertSingleStatementToBlock(node, field) {
 
 function passEmptyBody(node) {
     if (node.body.length == 0)
-        node.body = [{ type: 'Identifier', name: 'pass', espyType: 'PassStatement' }]
+        node.body = [{ type: 'Verbatim', text: 'pass' }] // Is it weird to represent this as an identifier?
 }
 
 function arrowFunctionToFunctionExpression(node) {
@@ -62,7 +65,7 @@ function annotateStaticMethod(node, path) {
     if (node.static) {
         let parent = path[path.length - 1]
         let positionInParent = parent.body.indexOf(node)
-        parent.body.splice(positionInParent, 0, { type: 'Identifier', name: '@staticmethod', espyType: 'Decorator' })
+        parent.body.splice(positionInParent, 0, { type: 'Verbatim', text: '@staticmethod' })
     }
 }
 
@@ -76,12 +79,25 @@ function moveFunctionIntoBlock(node, path) {
     return JSON.parse(JSON.stringify(node.id))
 }
 
+function memberAssignment(node) {
+    if (node.left.type == 'MemberExpression') {
+        return {
+            type: 'MemberAssignmentExpression',
+            object: node.left.object,
+            property: node.left.property,
+            value: node.right
+        }
+    }
+}
+
 var passes = [
     {
         Program: (node) => { node.type = 'BlockStatement'; node.isProgram = true },
         ClassBody: (node) => { node.type = 'BlockStatement'; node.isClassBody = true },
 
         NewExpression: (node) => { node.type = 'CallExpression'; node.isNewExpression = true },
+
+        AssignmentExpression: memberAssignment,
 
         FunctionExpression: (node) => { convertSingleStatementToBlock(node, 'body') },
         ArrowFunctionExpression: (node) => { convertSingleStatementToBlock(node, 'body') },

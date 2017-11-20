@@ -19,5 +19,8 @@
   "dependencies": {
     "esprima": "^4.0.0",
     "estraverse": "^4.2.0"
+  },
+  "devDependencies": {
+    "python-shell": "^0.4.0"
   }
 }
