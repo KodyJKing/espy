@@ -2,6 +2,21 @@ var print = require('./print')
 var ionstringify = require('./ionstringify')
 var preprocess = require('./preprocess')
 
+var stdBody =
+`def espyget(o, name):
+    if type(o).__name__ == 'dict':
+        return o[name]
+    else:
+        return getattr(o, name)
+
+def espyset(o, name, value):
+    if type(o).__name__ == 'dict':
+        o[name] = value
+    else:
+        setattr(o, name, value)
+
+`
+
 module.exports = function (ast) {
     print('\nAST', ast)
     ast = preprocess(ast)
@@ -16,7 +31,8 @@ module.exports = function (ast) {
     let seperator = (sep) => { let i = 0; return () => { if (i++ > 0) part(sep) } }
 
     let generate = function (node) {
-        let type = node.espyType || node.type
+        if (!node) return
+        let type = node.type
         let generator = generators[type]
         if (!generator) {
             print('\nERROR ON', node)
@@ -60,7 +76,7 @@ module.exports = function (ast) {
             for (let declaration of node.declarations) { separate(); generate(declaration.init)}
         },
         FunctionDeclaration: (node) => {
-            part(node.id.name + '(')
+            part('def ' + node.id.name + '(')
             let separate = seperator(', ')
             for (let param of node.params) { separate(); part(param.name) }
             part(')')
@@ -78,14 +94,9 @@ module.exports = function (ast) {
                 generate(node.alternate)
             }
         },
-        WhileStatement: (node) => {
-            part('while ')
-            generate(node.test)
-            part(':\n')
-            generate(node.body)
-        },
+        WhileStatement: (node) => { part('while '); generate(node.test); part(':\n'); generate(node.body) },
         BlockStatement: (node) => {
-            separate = seperator('\n')
+            let separate = seperator('\n')
             outdent()
             for (let line of node.body) {
                 separate()
@@ -94,12 +105,38 @@ module.exports = function (ast) {
             }
             indent()
         },
+        ObjectExpression: (node) => {
+            if (node.properties.length == 0) {
+                part('{}')
+                return
+            } else {
+                part('{ ')
+                let separate = seperator(', ')
+                for (let property of node.properties) { separate(); generate(property) }
+                part(' }')
+            }
+        },
+        Property: (node) => {
+            part(JSON.stringify(node.key.name) + ': ')
+            generate(node.value)
+        },
+        ReturnStatement: (node) => {
+            part('return')
+            if (node.argument) {
+                part(' ')
+                generate(node.argument)
+
+            }
+        },
+        ClassDeclaration: (node) => { part('class ' + node.id.name + ':\n'); generate(node.body) },
         BinaryExpression: (node) => { generate(node.left); part(' ' + node.operator + ' '); generate(node.right) },
+        AssignmentExpression: (node) => { generate(node.left); part(' = '); generate(node.right) },
         ExpressionStatement: (node) => { generate(node.expression) },
         Identifier: (node) => { part(node.name) },
-        Literal: (node) => { part(node.raw) },
-        PassStatement: (node) => { part('pass') }
+        Literal: (node) => { part(node.raw) }
     }
+
+    part(stdBody)
 
     generate(ast, 0)
     return parts.join('')

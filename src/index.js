@@ -3,26 +3,14 @@ var generate = require('./generate')
 var print = require('./print')
 var preprocess = require('./preprocess')
 
-// function compare(source) {
-//     let ast = esprima.parse(source)
-//     print(ast)
-//     print(preprocess(ast))
-// }
-
-// compare(`
-//     if (true) {}
-// `)
-
 var source =
-`
-while (a)
-    b()
-`
+`let a = {a: 10}
+let b = a.a`
 
 var tree = esprima.parse(source)
 var python = generate(tree)
 
 print()
-print(source)
+print('SOURCE', '\n' + source)
 print()
-print(python)
+print('PYTHON', '\n' + python)
